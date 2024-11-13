@@ -9,13 +9,13 @@ Haptic Feedback: Provides vibration-based feedback to prompt users to adjust pos
 Data Logging: Tracks posture corrections and provides summarized feedback on posture habits.
 Customizable Feedback: Allows users to adjust vibration intensity and pressure sensitivity via onboard controls.
 
-**Installation and Setup
-**
+**Installation and Setup**
 Clone this repository to your local machine:
 git clone https://github.com/lilmonkey912/ECE198SmartBackpack.git
 Ensure all dependencies and hardware components (STM32 microcontroller, pressure sensors, vibration motor, etc.) are correctly installed and connected.
 Follow the usage instructions in the documentation to operate the SmartBack system.
-**How to Use
-**Power on the system and attach the backpack to the user.
+
+**How to Use**
+Power on the system and attach the backpack to the user.
 The pressure sensors will automatically begin monitoring weight distribution.
 When an imbalance is detected, vibration feedback is triggered to alert the user.
