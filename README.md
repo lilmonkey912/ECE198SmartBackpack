@@ -5,12 +5,12 @@ The SmartBack system is designed to improve weight distribution for individuals 
 
 ## **Features**
 Real-Time Pressure Monitoring: Detects uneven weight distribution using capacitive pressure sensors and reports imbalances. <br/>
-Haptic Feedback: Provides vibration-based feedback to prompt users to adjust posture when an imbalance is detected. < br / >
-Data Logging: Tracks posture corrections and provides summarized feedback on posture habits. < br / >
+Haptic Feedback: Provides vibration-based feedback to prompt users to adjust posture when an imbalance is detected. <br/>
+Data Logging: Tracks posture corrections and provides summarized feedback on posture habits. <br/>
 Customizable Feedback: Allows users to adjust vibration intensity and pressure sensitivity via onboard controls.
 
 ## **Installation**
-Ensure all dependencies and hardware components (STM32 microcontroller, pressure sensors, vibration motor, etc.) are correctly installed and connected. < br / >
+Ensure all dependencies and hardware components (STM32 microcontroller, pressure sensors, vibration motor, etc.) are correctly installed and connected.<br/>
 Follow the usage instructions in the documentation to operate the SmartBack system.
 
 ## **How to Use**
