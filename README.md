@@ -4,7 +4,7 @@
 The SmartBack system is designed to improve weight distribution for individuals carrying heavy backpacks. Using embedded pressure sensors and vibration feedback, it helps users maintain proper posture and evenly distribute loads across their back.
 
 ## **Features**
-Real-Time Pressure Monitoring: Detects uneven weight distribution using capacitive pressure sensors and reports imbalances. < br / >
+Real-Time Pressure Monitoring: Detects uneven weight distribution using capacitive pressure sensors and reports imbalances. <br/>
 Haptic Feedback: Provides vibration-based feedback to prompt users to adjust posture when an imbalance is detected. < br / >
 Data Logging: Tracks posture corrections and provides summarized feedback on posture habits. < br / >
 Customizable Feedback: Allows users to adjust vibration intensity and pressure sensitivity via onboard controls.
