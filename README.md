@@ -12,7 +12,7 @@ Customizable Feedback: Allows users to adjust vibration intensity and pressure s
 **Installation and Setup**
 Clone this repository to your local machine:
 ```bash
-git clone https://github.com/lilmonkey912/ECE198SmartBackpack.git
+git clone https://github.com/lilmonkey912/ECE198SmartBackpack.git ```
 Ensure all dependencies and hardware components (STM32 microcontroller, pressure sensors, vibration motor, etc.) are correctly installed and connected.
 Follow the usage instructions in the documentation to operate the SmartBack system.
 
