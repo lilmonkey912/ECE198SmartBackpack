@@ -1,0 +1,140 @@
+#include "stm32f4xx_hal.h"
+#include "ff.h" // FatFs library for file handling
+#include "delay.h"
+#include "stdio.h"
+
+#define SD_SPI_HANDLE  hspi1    // Adjust with your SPI handle if needed
+extern SPI_HandleTypeDef SD_SPI_HANDLE;
+
+FATFS FatFs;    // FatFs instance
+FIL file;       // File object
+FRESULT res;    // FatFs result
+char filename[] = "posture_log.txt";  // Log file name
+
+void SD_Init(void)
+{
+    // Initialize SPI (assuming SPI1 is configured)
+    HAL_SPI_Init(&SD_SPI_HANDLE);
+    
+    // Mount the SD card
+    res = f_mount(&FatFs, "", 1);
+    if (res != FR_OK) {
+        printf("SD Mount Failed!\r\n");
+        while(1);  // Handle error
+    }
+
+    // Open the log file (create if doesn't exist)
+    res = f_open(&file, filename, FA_OPEN_ALWAYS | FA_WRITE);
+    if (res != FR_OK) {
+        printf("File Open Failed!\r\n");
+        while(1);  // Handle error
+    }
+
+    // Move the file pointer to the end for appending data
+    f_lseek(&file, f_size(&file));
+}
+
+void LogPostureData(float pressure_value)
+{
+    char log_entry[64];
+    uint32_t timestamp = HAL_GetTick();  // Get system uptime as timestamp
+
+    // Prepare the log entry
+    snprintf(log_entry, sizeof(log_entry), "Time: %lu ms, Pressure: %.4f MPa\r\n", timestamp, pressure_value);
+
+    // Write the log entry to the SD card
+    res = f_write(&file, log_entry, strlen(log_entry), &bw);
+    if (res != FR_OK) {
+        printf("Error writing to SD card!\r\n");
+    }
+}
+
+int main(void)
+{
+    HAL_Init();
+    uart2_rxtx_init();
+    
+    // Initialize pressure sensor
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;  // Enable GPIOA clock
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;   // Enable ADC1 clock
+    GPIOA->MODER |= GPIO_MODER_MODER1;    // Set PA1 as analog mode
+    ADC1->CR2 = 0;                        // Disable ADC
+    ADC1->CR2 |= ADC_CR2_CONT;            // Continuous conversion
+    ADC1->SQR3 |= 1;                      // Select channel 1 (PA1)
+    ADC1->CR2 |= 1;                       // Enable ADC
+    ADC1->CR2 |= ADC_CR2_SWSTART;         // Start conversion
+
+    // Initialize SD Card
+    SD_Init();
+
+    // Main loop
+    while (1)
+    {
+        // Get the voltage from the sensor
+        float voltage = get_voltage();
+        float pressure_value = pressure(voltage);
+        
+        // Print to UART for debugging
+        printf("Pressure: %.4f MPa\r\n", pressure_value);
+
+        // Log the posture data to the SD card
+        LogPostureData(pressure_value);
+
+        // Wait for a short interval before logging the next data point
+        delay(1000);  // Log every 1 second (adjust as needed)
+    }
+}
+
+#define PRESSURE_THRESHOLD 0.1f  // Adjust as necessary for posture detection
+
+void CheckPostureAndAlert(float pressure_value)
+{
+    if (pressure_value > PRESSURE_THRESHOLD)
+    {
+        Motor_Start();  // Start vibrating motor for bad posture
+    }
+    else
+    {
+        Motor_Stop();   // Stop motor when posture is corrected
+    }
+}
+
+int main(void)
+{
+    HAL_Init();
+    uart2_rxtx_init();
+    
+    // Initialize peripherals
+    Motor_Init();
+    SD_Init();
+    
+    // ADC setup for pressure sensor
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+    GPIOA->MODER |= GPIO_MODER_MODER1;
+    ADC1->CR2 = 0;
+    ADC1->CR2 |= ADC_CR2_CONT;
+    ADC1->SQR3 |= 1;
+    ADC1->CR2 |= 1;
+    ADC1->CR2 |= ADC_CR2_SWSTART;
+    
+    // Main loop
+    while (1)
+    {
+        // Get the voltage from the sensor and calculate pressure
+        float voltage = get_voltage();
+        float pressure_value = pressure(voltage);
+        
+        // Print the pressure value
+        printf("Pressure: %.4f MPa\r\n", pressure_value);
+        
+        // Log the data to SD card
+        LogPostureData(pressure_value);
+        
+        // Check posture and activate motor if needed
+        CheckPostureAndAlert(pressure_value);
+        
+        // Wait for the next data point
+        delay(1000);  // 1-second delay between readings
+    }
+}
