@@ -11,6 +11,28 @@ FIL file;       // File object
 FRESULT res;    // FatFs result
 char filename[] = "posture_log.txt";  // Log file name
 
+SPI_HandleTypeDef hspi1;
+
+void SPI_Init(void) {
+    // SPI initialization code (configure SPI pins, set up SPI peripheral)
+    hspi1.Instance = SPI1;
+    hspi1.Init.Mode = SPI_MODE_MASTER;
+    hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+    hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+    hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+    hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+    hspi1.Init.NSS = SPI_NSS_SOFT;
+    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+    hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+    hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    hspi1.Init.CRCPolynomial = 10;
+
+    if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+        // Error handling code
+    }
+} 
+
 void SD_Init(void)
 {
     // Initialize SPI (assuming SPI1 is configured)
@@ -24,6 +46,7 @@ void SD_Init(void)
     }
 
     // Open the log file (create if doesn't exist)
+    UINT bw;
     res = f_open(&file, filename, FA_OPEN_ALWAYS | FA_WRITE);
     if (res != FR_OK) {
         printf("File Open Failed!\r\n");
@@ -53,6 +76,9 @@ int main(void)
 {
     HAL_Init();
     uart2_rxtx_init();
+
+    // Initialize SD Card
+    SD_Init();
     
     // Initialize pressure sensor
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;  // Enable GPIOA clock
@@ -64,28 +90,13 @@ int main(void)
     ADC1->CR2 |= 1;                       // Enable ADC
     ADC1->CR2 |= ADC_CR2_SWSTART;         // Start conversion
 
-    // Initialize SD Card
-    SD_Init();
+    while(1)
+		{
+			printf("pressure is = %f MPa\r\n",pressure(get_voltage()));
+			delay(500);
+		}
 
-    // Main loop
-    while (1)
-    {
-        // Get the voltage from the sensor
-        float voltage = get_voltage();
-        float pressure_value = pressure(voltage);
-        
-        // Print to UART for debugging
-        printf("Pressure: %.4f MPa\r\n", pressure_value);
-
-        // Log the posture data to the SD card
-        LogPostureData(pressure_value);
-
-        // Wait for a short interval before logging the next data point
-        delay(1000);  // Log every 1 second (adjust as needed)
-    }
-}
-
-#define PRESSURE_THRESHOLD 0.1f  // Adjust as necessary for posture detection
+    #define PRESSURE_THRESHOLD 0.1f  // Adjust as necessary for posture detection
 
 void CheckPostureAndAlert(float pressure_value)
 {
@@ -99,42 +110,28 @@ void CheckPostureAndAlert(float pressure_value)
     }
 }
 
-int main(void)
-{
-    HAL_Init();
-    uart2_rxtx_init();
-    
-    // Initialize peripherals
-    Motor_Init();
-    SD_Init();
-    
-    // ADC setup for pressure sensor
-    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
-    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
-    GPIOA->MODER |= GPIO_MODER_MODER1;
-    ADC1->CR2 = 0;
-    ADC1->CR2 |= ADC_CR2_CONT;
-    ADC1->SQR3 |= 1;
-    ADC1->CR2 |= 1;
-    ADC1->CR2 |= ADC_CR2_SWSTART;
-    
     // Main loop
     while (1)
     {
-        // Get the voltage from the sensor and calculate pressure
+        // Get the voltage from the sensor
         float voltage = get_voltage();
         float pressure_value = pressure(voltage);
-        
-        // Print the pressure value
+
+        Serial.print("Sensor 1: ");
+        Serial.print(pressure_value);
+        Serial.print('\n');
+
+        // Print to UART for debugging
         printf("Pressure: %.4f MPa\r\n", pressure_value);
-        
-        // Log the data to SD card
+
+        // Log the posture data to the SD card
         LogPostureData(pressure_value);
-        
-        // Check posture and activate motor if needed
-        CheckPostureAndAlert(pressure_value);
-        
-        // Wait for the next data point
-        delay(1000);  // 1-second delay between readings
+
+        // Wait for a short interval before logging the next data point
+        delay(1000);  // Log every 1 second (adjust as needed)
+
+        CheckPostureAndAlert (pressure_value);
     }
 }
+
+
