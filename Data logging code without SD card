@@ -1,0 +1,130 @@
+#include "stm32f4xx_hal.h"
+#include "ff.h" // FatFs library for file handling
+#include "stm32f4xx_hal.h"
+#include "stdio.h"
+
+// USART2 handle definition
+UART_HandleTypeDef huart2;
+
+// Function to initialize UART (USART2)
+void UART_Init(void)
+{
+    __HAL_RCC_USART2_CLK_ENABLE();  // Enable USART2 clock
+    __HAL_RCC_GPIOA_CLK_ENABLE();   // Enable GPIOA clock for TX/RX pins
+
+    // Configure PA2 (TX) and PA3 (RX) for UART2
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_3;    // PA2 (TX), PA3 (RX)
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;           // Alternate function (UART)
+    GPIO_InitStruct.Pull = GPIO_NOPULL;               // No pull-up/pull-down resistors
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    // Configure USART2 parameters
+    huart2.Instance = USART2;
+    huart2.Init.BaudRate = 115200;     // Baud rate for communication
+    huart2.Init.WordLength = UART_WORDLENGTH_8B;  // 8 data bits
+    huart2.Init.StopBits = UART_STOPBITS_1;        // 1 stop bit
+    huart2.Init.Parity = UART_PARITY_NONE;         // No parity
+    huart2.Init.Mode = UART_MODE_TX_RX;            // Enable both TX and RX
+    huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;   // No flow control
+    huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+    if (HAL_UART_Init(&huart2) != HAL_OK) {
+        // Initialization error
+        Error_Handler();
+    }
+}
+
+// Function to send data over UART
+void UART_SendString(const char *str)
+{
+    HAL_UART_Transmit(&huart2, (uint8_t*)str, strlen(str), HAL_MAX_DELAY);
+}
+
+// Function to read sensor data (dummy function)
+float read_pressure_sensor(void)
+{
+    // This function should return the sensor data (pressure in MPa)
+    // For demonstration, we're just returning a dummy value
+    return 12.34;  // Example pressure value
+}
+
+int main(void)
+{
+    HAL_Init();  // Initialize the HAL library
+    UART_Init(); // Initialize the UART
+
+    // Main loop for logging data
+    while (1)
+    {
+        // Read sensor data (pressure)
+        float pressure = read_pressure_sensor();
+        
+        // Prepare data to send (formatted as a string)
+        char log_message[50];
+        snprintf(log_message, sizeof(log_message), "Pressure: %.2f MPa\r\n", pressure);
+        
+        // Send the log message over UART
+        UART_SendString(log_message);
+
+        // Add a delay between logging intervals (1 second for example)
+        HAL_Delay(1000);
+    }
+}
+
+
+BLAH BLAH BLAH 
+
+Added to the code:
+#include "delay.h"
+#include "stdio.h"
+
+
+
+
+
+
+
+int main(void)
+{
+   
+
+int main(void)
+{
+    HAL_Init();
+    uart2_rxtx_init();
+    
+    // Initialize peripherals
+    Motor_Init();
+    SD_Init();
+    
+    // ADC setup for pressure sensor
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+    GPIOA->MODER |= GPIO_MODER_MODER1;
+    ADC1->CR2 = 0;
+    ADC1->CR2 |= ADC_CR2_CONT;
+    ADC1->SQR3 |= 1;
+    ADC1->CR2 |= 1;
+    ADC1->CR2 |= ADC_CR2_SWSTART;
+    
+    // Main loop
+    while (1)
+    {
+        // Get the voltage from the sensor and calculate pressure
+        float voltage = get_voltage();
+        float pressure_value = pressure(voltage);
+        
+        // Print the pressure value
+        printf("Pressure: %.4f MPa\r\n", pressure_value);
+        
+        // Log the data to SD card
+        LogPostureData(pressure_value);
+        
+        // Check posture and activate motor if needed
+        CheckPostureAndAlert(pressure_value);
+        
+        // Wait for the next data point
+        delay(1000);  // 1-second delay between readings
+    }
+}
