@@ -1,137 +1,138 @@
-#include "stm32f4xx_hal.h"
-#include "ff.h" // FatFs library for file handling
-#include "delay.h"
-#include "stdio.h"
+#include "main.h"
+#include <stdio.h>
+#include "ff.h"  // FatFs library for SD card
 
-#define SD_SPI_HANDLE  hspi1    // Adjust with your SPI handle if needed
-extern SPI_HandleTypeDef SD_SPI_HANDLE;
+// ADC, UART, SPI handles (ensure they're declared in CubeMX)
+ADC_HandleTypeDef hadc1;
+UART_HandleTypeDef huart2;
+SPI_HandleTypeDef hspi1; // SPI handle for SD card
 
-FATFS FatFs;    // FatFs instance
-FIL file;       // File object
-FRESULT res;    // FatFs result
-char filename[] = "posture_log.txt";  // Log file name
+// SD card file system object
+FATFS fs;     // FatFs work area
+FIL file;     // File object
+FRESULT res;  // FatFs result code
 
-SPI_HandleTypeDef hspi1;
+// GPIO handle for vibration motor (example: PWM or digital output)
+GPIO_InitTypeDef motorGPIO;
 
-void SPI_Init(void) {
-    // SPI initialization code (configure SPI pins, set up SPI peripheral)
-    hspi1.Instance = SPI1;
-    hspi1.Init.Mode = SPI_MODE_MASTER;
-    hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-    hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-    hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-    hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-    hspi1.Init.NSS = SPI_NSS_SOFT;
-    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
-    hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-    hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-    hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-    hspi1.Init.CRCPolynomial = 10;
+// Define posture thresholds (example values)
+#define STANDING_THRESHOLD 1000 // Example ADC value for upright posture
+#define LEANING_THRESHOLD 2000  // Example ADC value for leaning forward
 
-    if (HAL_SPI_Init(&hspi1) != HAL_OK) {
-        // Error handling code
+// Redirect printf to UART
+int __io_putchar(int ch) {
+    HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
+
+// Function to calculate FSR resistance (pressure sensor)
+float calculateResistance(uint32_t adcValue, float vRef, float rFixed) {
+    float vOut = (adcValue / 4095.0) * vRef; // Convert ADC value to voltage
+    if (vOut == 0) return 1e6;              // Handle edge case for 0V
+    return rFixed * ((vRef / vOut) - 1);    // Voltage divider formula
+}
+
+// Function to detect incorrect posture based on ADC value
+int detectPosture(uint32_t adcValue) {
+    if (adcValue > LEANING_THRESHOLD) {
+        return 1; // Indicates incorrect posture (leaning forward)
+    } else if (adcValue < STANDING_THRESHOLD) {
+        return 1; // Indicates incorrect posture (head bent or hunched)
     }
-} 
+    return 0; // Posture is correct
+}
 
-void SD_Init(void)
-{
-    // Initialize SPI (assuming SPI1 is configured)
-    HAL_SPI_Init(&SD_SPI_HANDLE);
-    
+// Initialize vibration motor
+void motorInit(void) {
+    // Example GPIO setup for motor control (using PWM or simple digital output)
+    motorGPIO.Pin = GPIO_PIN_5; // Assuming motor is connected to Pin 5
+    motorGPIO.Mode = GPIO_MODE_OUTPUT_PP;
+    motorGPIO.Pull = GPIO_NOPULL;
+    motorGPIO.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &motorGPIO);  // Example: motor connected to GPIOB pin 5
+}
+
+// Trigger vibration motor for feedback
+void triggerVibration(void) {
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);  // Turn on motor
+    HAL_Delay(500);  // Vibration duration (500 ms)
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // Turn off motor
+}
+
+void SDCard_Init(void) {
     // Mount the SD card
-    res = f_mount(&FatFs, "", 1);
+    res = f_mount(&fs, "", 0);  // Mount the file system
     if (res != FR_OK) {
-        printf("SD Mount Failed!\r\n");
-        while(1);  // Handle error
+        printf("SD card mount failed: %d\n", res);
+        return;
     }
 
-    // Open the log file (create if doesn't exist)
-    UINT bw;
-    res = f_open(&file, filename, FA_OPEN_ALWAYS | FA_WRITE);
+    // Open the log file (create if not exists)
+    res = f_open(&file, "log.txt", FA_OPEN_ALWAYS | FA_WRITE);
     if (res != FR_OK) {
-        printf("File Open Failed!\r\n");
-        while(1);  // Handle error
+        printf("File open failed: %d\n", res);
+        return;
     }
 
-    // Move the file pointer to the end for appending data
+    // Move the file pointer to the end (append mode)
     f_lseek(&file, f_size(&file));
 }
 
-void LogPostureData(float pressure_value)
-{
-    char log_entry[64];
-    uint32_t timestamp = HAL_GetTick();  // Get system uptime as timestamp
-
-    // Prepare the log entry
-    snprintf(log_entry, sizeof(log_entry), "Time: %lu ms, Pressure: %.4f MPa\r\n", timestamp, pressure_value);
-
-    // Write the log entry to the SD card
-    res = f_write(&file, log_entry, strlen(log_entry), &bw);
+void SDCard_WriteData(const char *data) {
+    UINT bytesWritten;
+    res = f_write(&file, data, strlen(data), &bytesWritten);
     if (res != FR_OK) {
-        printf("Error writing to SD card!\r\n");
+        printf("Write failed: %d\n", res);
     }
 }
 
-int main(void)
-{
+int main(void) {
     HAL_Init();
-    uart2_rxtx_init();
+    SystemClock_Config();
+    MX_GPIO_Init();
+    MX_ADC1_Init();
+    MX_USART2_UART_Init(); // Add UART initialization
+    MX_SPI1_Init(); // SPI initialization for SD card
 
-    // Initialize SD Card
-    SD_Init();
-    
-    // Initialize pressure sensor
-    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;  // Enable GPIOA clock
-    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;   // Enable ADC1 clock
-    GPIOA->MODER |= GPIO_MODER_MODER1;    // Set PA1 as analog mode
-    ADC1->CR2 = 0;                        // Disable ADC
-    ADC1->CR2 |= ADC_CR2_CONT;            // Continuous conversion
-    ADC1->SQR3 |= 1;                      // Select channel 1 (PA1)
-    ADC1->CR2 |= 1;                       // Enable ADC
-    ADC1->CR2 |= ADC_CR2_SWSTART;         // Start conversion
+    // Initialize vibration motor
+    motorInit();
 
-    while(1)
-		{
-			printf("pressure is = %f MPa\r\n",pressure(get_voltage()));
-			delay(500);
-		}
+    // Initialize SD card for logging
+    SDCard_Init();
 
-    #define PRESSURE_THRESHOLD 0.1f  // Adjust as necessary for posture detection
+    HAL_ADC_Start(&hadc1); // Start ADC in continuous mode
 
-void CheckPostureAndAlert(float pressure_value)
-{
-    if (pressure_value > PRESSURE_THRESHOLD)
-    {
-        Motor_Start();  // Start vibrating motor for bad posture
-    }
-    else
-    {
-        Motor_Stop();   // Stop motor when posture is corrected
-    }
-}
+    uint32_t lastPostureCheckTime = HAL_GetTick();
+    uint32_t adcValue = 0;
+    int postureDetected = 0;
 
-    // Main loop
-    while (1)
-    {
-        // Get the voltage from the sensor
-        float voltage = get_voltage();
-        float pressure_value = pressure(voltage);
+    while (1) {
+        // Fetch the latest ADC value
+        adcValue = HAL_ADC_GetValue(&hadc1);
 
-        Serial.print("Sensor 1: ");
-        Serial.print(pressure_value);
-        Serial.print('\n');
+        // Detect posture based on ADC value
+        postureDetected = detectPosture(adcValue);
 
-        // Print to UART for debugging
-        printf("Pressure: %.4f MPa\r\n", pressure_value);
+        if (postureDetected) {
+            // Trigger vibration motor if posture is incorrect
+            triggerVibration();
+            // Log posture alert
+            char logData[100];
+            snprintf(logData, sizeof(logData), "Incorrect posture detected! ADC Value: %lu\n", adcValue);
+            SDCard_WriteData(logData);
+        }
 
-        // Log the posture data to the SD card
-        LogPostureData(pressure_value);
+        // Log posture data (even if posture is correct) to track posture over time
+        char logData[100];
+        snprintf(logData, sizeof(logData), "Posture Data - ADC Value: %lu\n", adcValue);
+        SDCard_WriteData(logData);
 
-        // Wait for a short interval before logging the next data point
-        delay(1000);  // Log every 1 second (adjust as needed)
+        // Check for latency requirement (1 second max)
+        uint32_t currentTime = HAL_GetTick();
+        if ((currentTime - lastPostureCheckTime) >= 1000) {
+            lastPostureCheckTime = currentTime;
+        }
 
-        CheckPostureAndAlert (pressure_value);
+        HAL_Delay(33); // Wait ~1/30 seconds (30 Hz update rate)
     }
 }
-
-
