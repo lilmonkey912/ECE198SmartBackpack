@@ -6,7 +6,7 @@ ADC_HandleTypeDef hadc1;
 UART_HandleTypeDef huart2;
 
 // Constants
-#define ADC_THRESHOLD 2048 // Calculated ADC value for 3kg force
+#define ADC_THRESHOLD 2048.0 // Calculated ADC value for 3kg force
 
 // Redirect printf to UART
 int __io_putchar(int ch) {
